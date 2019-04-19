@@ -1,0 +1,123 @@
+---
+- hosts: redis
+  remote_user: root
+  become: yes
+  vars_files:
+   - ./vars/vars.yaml
+  tasks: 
+  - name: Add 'mobiwan' user
+    user:
+     name: mobiwan
+     comment: mobiwan user
+
+  - name: Create Redis directory 
+    file:
+      path: /data/redis/
+      owner: mobiwan
+      group: mobiwan
+      state: directory
+
+  - name: Create Redis sub-directories 
+    file:
+      path: /data/redis/{{ item }}
+      owner: mobiwan
+      group: mobiwan
+      state: directory
+    with_items:
+        - master
+        - slave
+
+  - name: Synchronize local redis content 
+    synchronize:
+      src: ./redis/
+      dest: /data/redis/{{ item }}
+    with_items:
+        - master
+        - slave
+
+  - name: delete default config file
+    file:
+     dest: /data/redis/{{ item }}/redis.conf
+     state: absent 
+    with_items:
+        - master
+        - slave
+
+  - name: Edit vm overcommit memory
+    lineinfile:
+      path: /etc/sysctl.conf
+      line: 'vm.overcommit_memory=1'
+      create: yes
+
+  - name: Edit max connections
+    lineinfile:
+      path: /etc/sysctl.conf
+      line: 'net.core.somaxconn = 65535'
+      create: yes
+
+  - name: Enable sysctl modifications
+    shell: sysctl -p
+
+  - name: Copy missing packages to target machines
+    copy: 
+      src: packages/{{ item }}
+      dest: /tmp
+    with_items:
+       - jemalloc-3.6.0-1.el7.x86_64.rpm
+       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
+
+  - name: Install Missing Packages    
+    yum:
+      name: /tmp/{{ item }}
+      state: present 
+    with_items:
+       - jemalloc-3.6.0-1.el7.x86_64.rpm
+       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
+ 
+  - name: copy master config file
+    template: 
+     src: ./templates/node-master.conf.j2
+     dest: /data/redis/master/redis.conf
+     owner: mobiwan
+     group: mobiwan
+
+  - name: copy slave config file
+    template: 
+     src: ./templates/node-slave.conf.j2
+     dest: /data/redis/slave/redis.conf
+     owner: mobiwan
+     group: mobiwan
+ 
+  - name: copy master systemd unit files
+    template: 
+     src: ./templates/redis-master.service.j2
+     dest: /usr/lib/systemd/system/redis-master.service
+     owner: root
+     group: root
+
+  - name: copy slave systemd unit files
+    template: 
+     src: ./templates/redis-slave.service.j2
+     dest: /usr/lib/systemd/system/redis-slave.service
+     owner: root
+     group: root
+
+  - name: Reload systemd
+    shell: systemctl daemon-reload
+
+  - name: Start redis masters
+    service:
+      name: redis-master.service 
+      state: restarted 
+      enabled: yes
+
+  - name: Start redis slaves    
+    service:
+      name: redis-slave.service 
+      state: restarted 
+      enabled: yes  
+
+  - name: Initiate the cluster
+    run_once: true
+    delegate_to: 192.168.111.195
+    shell: echo 'yes' | /usr/local/bin/redis-cli --cluster create --cluster-replicas 1 {{node1ip}}:{{redis_master_port}} {{node2ip}}:{{redis_master_port}} {{node3ip}}:{{redis_master_port}} {{node1ip}}:{{redis_slave_port}} {{node2ip}}:{{redis_slave_port}} {{node3ip}}:{{redis_slave_port}}

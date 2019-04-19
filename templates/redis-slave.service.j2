@@ -1,0 +1,15 @@
+[Unit]
+Description=Redis Slave
+After=network.target
+
+[Service]
+Type=simple
+PIDFile={{ redis_slave_run_dir }}/redis.pid
+User=root
+ExecStartPre=/bin/mkdir -p {{ redis_slave_run_dir }}/logs
+ExecStart=/usr/local/bin/redis-server {{ redis_slave_run_dir }}/redis.conf
+ExecStop=/bin/kill -15 $MAINPID
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

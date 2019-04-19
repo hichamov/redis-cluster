@@ -1,0 +1,10 @@
+bind {{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}
+port {{ redis_slave_port }}
+cluster-enabled yes
+cluster-config-file {{ redis_slave_run_dir }}/cluster-node-2.conf
+cluster-node-timeout 15000
+protected-mode no
+#requirepass '{{ redis_cluster_password }}'
+appendonly yes
+appendfilename node-slave.aof
+dbfilename dump-slave.rdb

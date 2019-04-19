@@ -1,0 +1,8 @@
+---
+redis_master_port: 6379
+redis_master_run_dir: /data/redis/master  
+redis_slave_port: 6378
+redis_slave_run_dir: /data/redis/slave  
+node1ip: 192.168.111.195
+node2ip: 192.168.111.196
+node3ip: 192.168.111.195
