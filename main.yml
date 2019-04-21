@@ -5,10 +5,10 @@
   vars_files:
    - ./vars/vars.yaml
   tasks: 
-  - name: Add 'mobiwan' user
-    user:
-     name: mobiwan
-     comment: mobiwan user
+#  - name: Add 'mobiwan' user
+#    user:
+#     name: mobiwan
+#     comment: mobiwan user
 
   - name: Create Redis directory 
     file:
@@ -16,6 +16,47 @@
       owner: mobiwan
       group: mobiwan
       state: directory
+
+  - name: Install dependencies
+    yum:
+      name: "{{ item }}"
+      state: latest
+    with_items:
+     - gcc
+     - rsync
+ 
+  - name: Copy missing packages to target machines
+    copy:
+      src: packages/{{ item }}
+      dest: /tmp
+    with_items:
+       - jemalloc-3.6.0-1.el7.x86_64.rpm
+       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
+
+  - name: Install Missing Packages
+    yum:
+      name: /tmp/{{ item }}
+      state: present
+    with_items:
+       - jemalloc-3.6.0-1.el7.x86_64.rpm
+       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
+
+  - name: Open client ports in firewalld
+    firewalld:
+      port: 6378-6379/tcp
+      permanent: yes
+      state: enabled
+
+  - name: Open cluster ports in firewalld
+    firewalld:
+      port: 16378-16379/tcp
+      permanent: yes
+      state: enabled
+
+  - name: Reload firewalld service
+    service:
+      name: firewalld
+      state: reloaded
 
   - name: Create Redis sub-directories 
     file:
@@ -43,36 +84,20 @@
         - master
         - slave
 
-  - name: Edit vm overcommit memory
-    lineinfile:
-      path: /etc/sysctl.conf
-      line: 'vm.overcommit_memory=1'
-      create: yes
-
-  - name: Edit max connections
-    lineinfile:
-      path: /etc/sysctl.conf
-      line: 'net.core.somaxconn = 65535'
-      create: yes
-
-  - name: Enable sysctl modifications
-    shell: sysctl -p
-
-  - name: Copy missing packages to target machines
-    copy: 
-      src: packages/{{ item }}
-      dest: /tmp
-    with_items:
-       - jemalloc-3.6.0-1.el7.x86_64.rpm
-       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
-
-  - name: Install Missing Packages    
-    yum:
-      name: /tmp/{{ item }}
-      state: present 
-    with_items:
-       - jemalloc-3.6.0-1.el7.x86_64.rpm
-       - jemalloc-devel-3.6.0-1.el7.x86_64.rpm
+#  - name: Edit vm overcommit memory
+#    lineinfile:
+#      path: /etc/sysctl.conf
+#      line: 'vm.overcommit_memory=1'
+#      create: yes
+#
+#  - name: Edit max connections
+#    lineinfile:
+#      path: /etc/sysctl.conf
+#      line: 'net.core.somaxconn = 65535'
+#      create: yes
+#
+#  - name: Enable sysctl modifications
+#    shell: sysctl -p
  
   - name: copy master config file
     template: 
@@ -80,6 +105,14 @@
      dest: /data/redis/master/redis.conf
      owner: mobiwan
      group: mobiwan
+
+  - name: Install gcc
+    yum:
+      name: gcc
+      state: latest
+
+  - name: Compile redis
+    shell: cd /data/redis/master/ && make
 
   - name: copy slave config file
     template: 
@@ -120,4 +153,7 @@
   - name: Initiate the cluster
     run_once: true
     delegate_to: 192.168.111.195
-    shell: echo 'yes' | /usr/local/bin/redis-cli --cluster create --cluster-replicas 1 {{node1ip}}:{{redis_master_port}} {{node2ip}}:{{redis_master_port}} {{node3ip}}:{{redis_master_port}} {{node1ip}}:{{redis_slave_port}} {{node2ip}}:{{redis_slave_port}} {{node3ip}}:{{redis_slave_port}}
+    shell: echo 'yes' | /data/redis/master/src/redis-cli --cluster create --cluster-replicas 1 {{node1ip}}:{{redis_master_port}} {{node2ip}}:{{redis_master_port}} {{node3ip}}:{{redis_master_port}} {{node1ip}}:{{redis_slave_port}} {{node2ip}}:{{redis_slave_port}} {{node3ip}}:{{redis_slave_port}}
+    register: myvar
+  - debug: msg="stdout={{myvar.stdout}}"
+  - debug: msg="stderr={{myvar.stderr}}"
