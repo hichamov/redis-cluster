@@ -5,10 +5,10 @@
   vars_files:
    - ./vars/vars.yaml
   tasks: 
-#  - name: Add 'mobiwan' user
-#    user:
-#     name: mobiwan
-#     comment: mobiwan user
+  - name: Add 'mobiwan' user
+    user:
+     name: mobiwan
+     comment: mobiwan user
 
   - name: Create Redis directory 
     file:
@@ -152,8 +152,9 @@
 
   - name: Initiate the cluster
     run_once: true
-    delegate_to: 192.168.111.195
+#    delegate_to: 192.168.111.195
     shell: echo 'yes' | /data/redis/master/src/redis-cli --cluster create --cluster-replicas 1 {{node1ip}}:{{redis_master_port}} {{node2ip}}:{{redis_master_port}} {{node3ip}}:{{redis_master_port}} {{node1ip}}:{{redis_slave_port}} {{node2ip}}:{{redis_slave_port}} {{node3ip}}:{{redis_slave_port}}
+#    when: hostvars.redis.role == "initiator" 
     register: myvar
   - debug: msg="stdout={{myvar.stdout}}"
   - debug: msg="stderr={{myvar.stderr}}"

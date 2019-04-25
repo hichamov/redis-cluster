@@ -1,5 +1,5 @@
 [redis]
 192.168.111.197 ansible_ssh_user=root 
-192.168.111.195 ansible_ssh_user=root
+192.168.111.195 ansible_ssh_user=root  role=initiator
 192.168.111.196 ansible_ssh_user=root
 
